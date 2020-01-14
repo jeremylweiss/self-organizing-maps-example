@@ -1,7 +1,7 @@
 
 
 ##################################################################
-##  EXAMPLE SOM ANALYSIS USING NCEP NCAR R2 DATA
+##  EXAMPLE SELF-ORGANIZING MAP (SOM) ANALYSIS WITH NCEP-NCAR DATA
 ##################################################################
 
 
@@ -26,26 +26,31 @@
 
 
 ##################################################################
+##  A. SETUP R ENVIRONMENT
+##################################################################
 
 
-
-#####  LOAD NEEDED PACKAGES
-
-
+#  Load the needed packages.
 library( "maps" )  #  needed for "RNCEP" package
-library( "RNCEP" )
+library( "RNCEP" )  #  needed for NCEP-NCAR data
+library( "reshape2" )  #  for long/wide data reformatting
+
+library( "kohonen" )  #
+library( "dplyr" )  #
+library( "tidyr" )  #
+library( "ggplot2" )  #
+library( "PBSmapping" )  #
 
 
-
-
-#####  DOWNLOAD AND TRANSFORM NCEP-NCAR R2 DATA
+##################################################################
+##  B. DOWNLOAD AND TRANSFORM NCEP-NCAR R2 DATA
+##################################################################
 
 
 #  Download NCEP-NCAR R2 data. This is automatically brought into
-#  the workspace as a 3-D array.
-
-#  500-millibar geopotential height for the months of February, 
-#  March, and April over the Southwestern US.
+#  the workspace as a 3-D array. In this case, the variable of 
+#  interest is 500-millibar geopotential height for the months of 
+#  February, March, and April over the Southwestern US.
 gph_500 <- NCEP.gather( variable = 'hgt',
                         level = 500,
                         months.minmax = c( 2,4 ),
@@ -88,7 +93,8 @@ NCEP.vis.area( wx.data = gph_500,
 
 
 #  NCEP NCAR R2 data are on a six-hour timestep. Temporally
-#  aggregate the data on a daily timestep.
+#  aggregate the data on a daily timestep, averaging values
+#  from individual days.
 gph_500_daily <- NCEP.aggregate( wx.data = gph_500,
                                  YEARS = TRUE,
                                  MONTHS = TRUE,
@@ -105,6 +111,23 @@ df <- NCEP.array2df( wx.data = gph_500_daily,
 rm( gph_500_daily )
 
 
+##################################################################
+##  C. RUN SELF-ORGANIZING MAP (SOM) ANALYSIS
+##################################################################
+
+
+#  Reshape the dataframe from long to wide format. This is to 
+#  place all data for one day into one row (i.e., a sample in the
+#  case of SOM analysis) with following columns (i.e., gridpoints 
+#  in the analysis domain) as corresponding values.
+df_wide <- dcast( data = df,
+                  formula = datetime ~ latitude + longitude,
+                  value.var = "gph500"
+)
+
+
+
+
 
 
 ##### START EDITING HERE NEXT TIME
@@ -112,32 +135,9 @@ rm( gph_500_daily )
 
 
 
-
-##################################################################
-##  C. RUN SELF-ORGANIZING MAP ANALYSIS
-##################################################################
-
-
-#  Load needed packages. It is assumed that the packages already
-#  are installed.
-library( "reshape2" )
-library( "kohonen" )
-library( "dplyr" )
-library( "tidyr" )
-library( "ggplot2" )
-library( "PBSmapping" )
-
-#  Reshape the dataframe from long to wide format. This is to 
-#  place all data for one day into one row (i.e., sample) with
-#  columns (i.e., gridpoints) as variables.
-gph.500.daily.df.wide <- dcast( gph.500.daily.df,
-                                formula=datetime~latitude+longitude,
-                                value.var="gph500"
-)
-
 #  Define the number of patterns to retain in the SOM analysis.
-nrows <- 4
-ncols <- 6
+nrows <- 5
+ncols <- 7
 
 
 #  Run the Self-organizing map analysis. Note that the input data
