@@ -136,8 +136,8 @@ df_wide <- dcast( data = df,
 
 
 #  Define the number of patterns to retain in the SOM analysis.
-nrows <- 4
-ncols <- 6
+nrows <- 5
+ncols <- 7
 
 
 #  Run the Self-organizing map analysis. Note that the input data
