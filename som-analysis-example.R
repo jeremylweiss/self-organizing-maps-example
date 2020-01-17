@@ -32,10 +32,10 @@
 
 #  Load the needed packages.
 library( "maps" )  #  needed for "RNCEP" package
-library( "RNCEP" )  #  needed for NCEP-NCAR data
+library( "RNCEP" )  #  working with NCEP-NCAR data
 library( "reshape2" )  #  for long/wide data reformatting
+library( "kohonen" )  #  for SOM analysis
 
-library( "kohonen" )  #
 library( "dplyr" )  #
 library( "tidyr" )  #
 library( "ggplot2" )  #
@@ -51,7 +51,7 @@ library( "PBSmapping" )  #
 #  the workspace as a 3-D array. In this case, the variable of 
 #  interest is 500-millibar geopotential height for the months of 
 #  February, March, and April over the Southwestern US.
-gph_500 <- NCEP.gather( variable = 'hgt',
+gph500 <- NCEP.gather( variable = 'hgt',
                         level = 500,
                         months.minmax = c( 2,4 ),
                         years.minmax = c( 1979,2019 ),
@@ -63,25 +63,26 @@ gph_500 <- NCEP.gather( variable = 'hgt',
 
 #  Save the data array to the current directory for future code
 #  development.
-#save( gph_500,file = "gph_500_feb_apr_7919.Rdata" )
+#save( gph500,file = "gph500_feb_apr_7919.Rdata" )
 
-#  To load this array at a later time, use the following:
-#load( "gph_500_feb_apr_7919.RData" )
+#  To load the saved array at a later time, use the following:
+#load( "gph500_feb_apr_7919.RData" )
 
 #  Confirm area of interest by mapping a single layer (i.e.,
 #  timestep) of the data array. 
-NCEP.vis.area( wx.data = gph_500,
+NCEP.vis.area( wx.data = gph500,
                layer = 1,
                show.pts = TRUE,
                draw.contours = TRUE,
-               cols = topo.colors( 16,alpha = 0.5 ),
+               cols = topo.colors( n = 16,
+                                   alpha = 0.5 ),
                transparency = 0.5,
                axis.args = NULL,
                map.args = NULL,
                grid.args= NULL,
                title.args = list( main = "example layer of geopotential height data",
                                   xlab = "longitude (degrees)",
-                                  ylab = "latitude (degrees)"),
+                                  ylab = "latitude (degrees)" ),
                interp.loess.args = list( span = 0.75 ),
                image.plot.args = list( legend.args = list( text = "m",
                                                            cex = 1.0,
@@ -91,24 +92,23 @@ NCEP.vis.area( wx.data = gph_500,
                points.args = list( pch = 20,
                                    cex = 0.75 ) )
 
-
 #  NCEP NCAR R2 data are on a six-hour timestep. Temporally
 #  aggregate the data on a daily timestep, averaging values
 #  from individual days.
-gph_500_daily <- NCEP.aggregate( wx.data = gph_500,
+gph500_daily <- NCEP.aggregate( wx.data = gph500,
                                  YEARS = TRUE,
                                  MONTHS = TRUE,
                                  DAYS = TRUE,
                                  HOURS = FALSE,
                                  fxn = "mean" )
-rm( gph_500 )
+rm( gph500 )
 
 #  Convert the data array to a dataframe. Columns will be
 #  'datetime', 'latitude', 'longitude', 'gph500'. Rows will be
 #  individual space-time-height value combinations.
-df <- NCEP.array2df( wx.data = gph_500_daily,
-                     var.names = "gph500" )
-rm( gph_500_daily )
+gph500_df <- NCEP.array2df( wx.data = gph500_daily,
+                             var.names = "gph500" )
+rm( gph500_daily )
 
 
 ##################################################################
@@ -120,10 +120,27 @@ rm( gph_500_daily )
 #  place all data for one day into one row (i.e., a sample in the
 #  case of SOM analysis) with following columns (i.e., gridpoints 
 #  in the analysis domain) as corresponding values.
-df_wide <- dcast( data = df,
-                  formula = datetime ~ latitude + longitude,
-                  value.var = "gph500"
-)
+gph500_df_wide <- dcast( data = gph500_df,
+                          formula = datetime ~ latitude + longitude,
+                          value.var = "gph500" )
+rm( gph500_df )
+
+#  Define the number of nodes (i.e., key patterns) to retain in 
+#  the SOM analysis.
+nrows <- 5
+ncols <- 7
+
+#  Run the self-organizing map analysis. Note that the input data
+#  must be in matrix form and that the datetime column is not 
+#  needed. The 'somgrid' function sets up a grid of units for the
+#  analysis.
+gph500_som <- som( X = as.matrix( gph500_df_wide[ ,2:ncol( gph500_df_wide ) ] ),
+                   grid = somgrid( xdim = ncols,
+                                   ydim = nrows,
+                                   topo = "rectangular" ),
+                   rlen = 500,  #  number of times data presented to network
+                   alpha = c( 0.05,0.01 ),  #  learning rate
+                   keep.data = TRUE )
 
 
 
@@ -135,25 +152,6 @@ df_wide <- dcast( data = df,
 
 
 
-#  Define the number of patterns to retain in the SOM analysis.
-nrows <- 5
-ncols <- 7
-
-
-#  Run the Self-organizing map analysis. Note that the input data
-#  must be in matrix form and that the datetime column is not 
-#  needed. 'somgrid' sets up a grid of units for the analysis.
-som.gph500 <- som( X=as.matrix( gph.500.daily.df.wide[ ,2:ncol( gph.500.daily.df.wide ) ] ),
-                   grid=somgrid( xdim=ncols,
-                                 ydim=nrows,
-                                 topo="rectangular"
-                   ),
-                   rlen=500,
-                   alpha=c( 0.05,0.01 ),  #  learning rate
-                   #radius= ,  #  neighborhood radius
-                   keep.data=TRUE
-)
-
 
 
 #  From: https://www.shanelynn.ie/self-organising-maps-for-customer-segmentation-using-r/
@@ -164,14 +162,20 @@ som.gph500 <- som( X=as.matrix( gph.500.daily.df.wide[ ,2:ncol( gph.500.daily.df
 #  should reach a minimum plateau. This plot option shows the
 #  progress over time. If the curve is continually decreasing, 
 #  more iterations are required.
-plot( som.gph500,type="changes" )
-plot( som.gph500,type="count",main="node counts" )
-plot( som.gph500,type="dist.neighbours",main = "SOM neighbour distances" )
-plot( som.gph500,type="codes" )
-plot( som.gph500,
+plot( gph500_som,type="changes" )
+plot( gph500_som,type="count",main="node counts" )
+plot( gph500_som,type="dist.neighbours",main = "SOM neighbour distances" )
+plot( gph500_som,type="codes" )
+plot( gph500_som,
       type="property",
-      property=getCodes( som.gph500 )[ ,4 ],
-      main=colnames( getCodes( som.gph500 ) )[ 4 ] )
+      property=getCodes( gph500_som )[ ,4 ],
+      main=colnames( getCodes( gph500_som ) )[ 4 ] )
+
+
+plot( gph500_som,
+      type = "mapping",
+      col = 
+      main = "yeast data")
 
 
 
@@ -180,10 +184,9 @@ plot( som.gph500,
 #  Check characteristics of SOM analysis output.
 #  
 #  Dimensions of extracted codebook vectors.
-dim( getCodes( som.gph500 ) )
+dim( getCodes( gph500_som ) )
 #  Summary 
-print( som.gph500 )
-summary( som.gph500 ) 
+summary( gph500_som ) 
 
 
 
@@ -193,10 +196,10 @@ summary( som.gph500 )
 #  Convert the 'codes' of the SOM analysis to a dataframe. This
 #  represents 500-mb geopotential height values for each gridpoint
 #  for each of the SOM analysis nodes, or maps.  
-gph500.codebook <- as.data.frame( som.gph500$codes )
+gph500.codebook <- as.data.frame( gph500_som$codes )
 
 #  Extract the grid points from the SOM analysis output.
-code.grid <- as.data.frame( som.gph500$grid$pts )
+code.grid <- as.data.frame( gph500_som$grid$pts )
 code.grid$mapUnit <- seq( 1,nrow( code.grid ) )
 code.grid <- code.grid %>%
   unite( y,x,col="codes",sep="_" ) # add mapunit back in if needed
@@ -252,7 +255,7 @@ codebook.long <- separate( codebook.long,
 # assign days to nodes
 #   NOTE THAT THE FUNCTION map() WILL REVERT TO THE 'maps' 
 #   LIBRARY VERSION AND PRODUCE AN ERROR
-nodes <- map( som.gph500 )
+nodes <- map( gph500_som )
 
 somTime <- as.data.frame( cbind( gph.500.daily.df.wide$datetime,
                                  nodes$unit.classif,
@@ -402,15 +405,15 @@ ggsave( "./som_4x6_maps_ncep_ncar_r2_southwest_jfm_7818.png",
 
 
 # summary plots -- appears to plot opposite up/down from SOM plot
-counts <- plot(som.gph500, type="counts", shape = "straight", labels=counts)
-codes <- plot(som.gph500, type="codes", shape = "straight")
-similarities <- plot(som.gph500, type="quality", palette.name = terrain.colors)
-plot(som.gph500, type="dist.neighbours", main = "SOM neighbour distances")
+counts <- plot(gph500_som, type="counts", shape = "straight", labels=counts)
+codes <- plot(gph500_som, type="codes", shape = "straight")
+similarities <- plot(gph500_som, type="quality", palette.name = terrain.colors)
+plot(gph500_som, type="dist.neighbours", main = "SOM neighbour distances")
 
 # sammon mapping
 library(MASS)
-gph500.codes <- som.gph500$codes
-dis <- dist(as.matrix(som.gph500$codes[[1]]))
+gph500.codes <- gph500_som$codes
+dis <- dist(as.matrix(gph500_som$codes[[1]]))
 gph500.sam <- sammon(dis)
 plot(gph500.sam$points, type="n")
 text(gph500.sam$points,labels=as.character(1:nrow(code.grid)))
