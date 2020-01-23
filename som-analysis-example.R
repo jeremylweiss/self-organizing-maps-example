@@ -119,8 +119,6 @@ rm( gph500_daily )
 ##################################################################
 
 
-set.seed( 1 )
-
 #  Reshape the dataframe from long to wide format. This is to 
 #  place all data for one day into one row (i.e., a sample in the
 #  case of SOM analysis) with following columns (i.e., gridpoints 
@@ -140,6 +138,7 @@ ncols <- 7
 #  needed. The 'somgrid' function sets up a grid of units for the
 #  analysis. This grid represents an atmospheric pattern topology
 #  to which atmospheric patterns of individual days are mapped.
+set.seed( 7 )
 gph500_som <- som( X = as.matrix( gph500_df_daily_wide[ ,2:ncol( gph500_df_daily_wide ) ] ),
                    grid = somgrid( xdim = ncols,
                                    ydim = nrows,
