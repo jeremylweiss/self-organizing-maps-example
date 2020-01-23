@@ -13,7 +13,7 @@
 #  the months of February, March, and April over the Southwestern
 #  United States. 
 
-#  The following code is based on that by: 
+#  The following code is based on initial work by: 
 #  Michael Crimmins, Extension Specialist and Professor
 #  Department of Environmental Science
 #  University of Arizona
@@ -23,6 +23,9 @@
 #  School of Natural Resources and the Environment
 #  University of Arizona
 #  520-626-8063, jlweiss@email.arizona.edu
+
+#  Readings:
+#  Wehrens & Buydens (2007) JStatSoft
 
 
 ##################################################################
@@ -96,18 +99,18 @@ NCEP.vis.area( wx.data = gph500,
 #  aggregate the data on a daily timestep, averaging values
 #  from individual days.
 gph500_daily <- NCEP.aggregate( wx.data = gph500,
-                                 YEARS = TRUE,
-                                 MONTHS = TRUE,
-                                 DAYS = TRUE,
-                                 HOURS = FALSE,
-                                 fxn = "mean" )
+                                YEARS = TRUE,
+                                MONTHS = TRUE,
+                                DAYS = TRUE,
+                                HOURS = FALSE,
+                                fxn = "mean" )
 rm( gph500 )
 
 #  Convert the data array to a dataframe. Columns will be
 #  'datetime', 'latitude', 'longitude', 'gph500'. Rows will be
 #  individual space-time-height value combinations.
-gph500_df <- NCEP.array2df( wx.data = gph500_daily,
-                             var.names = "gph500" )
+gph500_daily_df <- NCEP.array2df( wx.data = gph500_daily,
+                                  var.names = "gph500" )
 rm( gph500_daily )
 
 
@@ -116,14 +119,16 @@ rm( gph500_daily )
 ##################################################################
 
 
+set.seed( 1 )
+
 #  Reshape the dataframe from long to wide format. This is to 
 #  place all data for one day into one row (i.e., a sample in the
 #  case of SOM analysis) with following columns (i.e., gridpoints 
 #  in the analysis domain) as corresponding values.
-gph500_df_wide <- dcast( data = gph500_df,
-                          formula = datetime ~ latitude + longitude,
-                          value.var = "gph500" )
-rm( gph500_df )
+gph500_df_daily_wide <- dcast( data = gph500_daily_df,
+                               formula = datetime ~ latitude + longitude,
+                               value.var = "gph500" )
+rm( gph500_daily_df )
 
 #  Define the number of nodes (i.e., key patterns) to retain in 
 #  the SOM analysis.
@@ -133,8 +138,9 @@ ncols <- 7
 #  Run the self-organizing map analysis. Note that the input data
 #  must be in matrix form and that the datetime column is not 
 #  needed. The 'somgrid' function sets up a grid of units for the
-#  analysis.
-gph500_som <- som( X = as.matrix( gph500_df_wide[ ,2:ncol( gph500_df_wide ) ] ),
+#  analysis. This grid represents an atmospheric pattern topology
+#  to which atmospheric patterns of individual days are mapped.
+gph500_som <- som( X = as.matrix( gph500_df_daily_wide[ ,2:ncol( gph500_df_daily_wide ) ] ),
                    grid = somgrid( xdim = ncols,
                                    ydim = nrows,
                                    topo = "rectangular" ),
