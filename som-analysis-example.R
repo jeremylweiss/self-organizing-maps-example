@@ -24,8 +24,9 @@
 #  University of Arizona
 #  520-626-8063, jlweiss@email.arizona.edu
 
-#  Readings:
-#  Wehrens & Buydens (2007) JStatSoft
+#  Additional reading:
+#  1. Wehrens & Buydens (2007) JStatSoft
+#  2. https://www.shanelynn.ie/self-organising-maps-for-customer-segmentation-using-r/
 
 
 ##################################################################
@@ -43,6 +44,11 @@ library( "dplyr" )  #
 library( "tidyr" )  #
 library( "ggplot2" )  #
 library( "PBSmapping" )  #
+
+#  Function to help with visualization of results.
+colors.node.counts <- function( n, alpha = 1 ) {
+  heat.colors( n, alpha = alpha )[ n:1 ]
+}
 
 
 ##################################################################
@@ -113,12 +119,6 @@ gph500_daily_df <- NCEP.array2df( wx.data = gph500_daily,
                                   var.names = "gph500" )
 rm( gph500_daily )
 
-
-##################################################################
-##  C. RUN SELF-ORGANIZING MAP (SOM) ANALYSIS
-##################################################################
-
-
 #  Reshape the dataframe from long to wide format. This is to 
 #  place all data for one day into one row (i.e., a sample in the
 #  case of SOM analysis) with following columns (i.e., gridpoints 
@@ -128,25 +128,58 @@ gph500_df_daily_wide <- dcast( data = gph500_daily_df,
                                value.var = "gph500" )
 rm( gph500_daily_df )
 
+
+##################################################################
+##  C. RUN SELF-ORGANIZING MAP (SOM) ANALYSIS
+##################################################################
+
+
 #  Define the number of nodes (i.e., key patterns) to retain in 
 #  the SOM analysis.
-nrows <- 5
-ncols <- 7
+nrows <- 19
+ncols <- 21
 
 #  Run the self-organizing map analysis. Note that the input data
 #  must be in matrix form and that the datetime column is not 
 #  needed. The 'somgrid' function sets up a grid of units for the
 #  analysis. This grid represents an atmospheric pattern topology
-#  to which atmospheric patterns of individual days are mapped.
+#  to which atmospheric patterns of individual days are linked, or
+#  associated. 
 set.seed( 7 )
 gph500_som <- som( X = as.matrix( gph500_df_daily_wide[ ,2:ncol( gph500_df_daily_wide ) ] ),
                    grid = somgrid( xdim = ncols,
                                    ydim = nrows,
                                    topo = "rectangular" ),
-                   rlen = 500,  #  number of times data presented to network
-                   alpha = c( 0.05,0.01 ),  #  learning rate
+                   rlen = 1000,  #  number of times data presented to network
+                   alpha = c( 1.0,0.001 ),  #  learning rate range
                    keep.data = TRUE )
 
+#  In this case, the 'som()' function returns a kohonen-type 
+#  object that is a list of 13 elements.
+summary( gph500_som )
+names( gph500_som )
+
+
+##################################################################
+##  D. VISUALIZE SOM ANALYSIS RESULTS
+##################################################################
+
+
+#  Check how the SOM training progressed (progress here is defined
+#  as the distance from the weights of each node to the samples
+#  represented by that node becoming reduced as the number of 
+#  times that the data are presented to the network increases).
+#  Ideally, distances should approach minimimal values 
+#  (represented on this graph as an inverse plateau).
+plot( x = gph500_som,
+      type = "changes",
+      main = "training progress" )
+
+#
+plot( x = gph500_som,
+      type = "counts",
+      main = "node counts",
+      palette.name = colors.node.counts )
 
 
 
@@ -159,16 +192,9 @@ gph500_som <- som( X = as.matrix( gph500_df_daily_wide[ ,2:ncol( gph500_df_daily
 
 
 
+
 #  From: https://www.shanelynn.ie/self-organising-maps-for-customer-segmentation-using-r/
 #  
-#  Check the SOM training progress As the SOM training iterations
-#  progress, the distance from each node's weights to the samples
-#  represented by that node is reduced. Ideally, this distance
-#  should reach a minimum plateau. This plot option shows the
-#  progress over time. If the curve is continually decreasing, 
-#  more iterations are required.
-plot( gph500_som,type="changes" )
-plot( gph500_som,type="count",main="node counts" )
 plot( gph500_som,type="dist.neighbours",main = "SOM neighbour distances" )
 plot( gph500_som,type="codes" )
 plot( gph500_som,
