@@ -130,34 +130,78 @@ rm( gph500_daily_df )
 
 
 ##################################################################
-##  C. RUN SELF-ORGANIZING MAP (SOM) ANALYSIS
+##  C. RUN SOM ANALYSIS, TESTING SOM GRID ALGORITHM OPTION
 ##################################################################
 
 
 #  Define the number of nodes (i.e., key patterns) to retain in 
-#  the SOM analysis.
-nrows <- 19
-ncols <- 21
+#  the SOM analysis. Start with a SOM grid size that is common
+#  in climate studies and increase from there.
+nrows <- 5
+ncols <- 7
+for ( i in 1:12 ) {
+  
+  #  Run the self-organizing map analysis. Note that the input data
+  #  must be in matrix form and that the datetime column is not 
+  #  needed. The 'somgrid' function sets up a grid of units for the
+  #  analysis. This grid represents an atmospheric pattern topology
+  #  to which atmospheric patterns of individual days are linked, or
+  #  associated. 
+  set.seed( 7 )
+  gph500_som <- som( X = as.matrix( gph500_df_daily_wide[ ,2:ncol( gph500_df_daily_wide ) ] ),
+                     grid = somgrid( xdim = ncols,
+                                     ydim = nrows,
+                                     topo = "rectangular" ),
+                     rlen = 1000,  #  number of times data presented to network
+                     alpha = c( 1.0,0.001 ),  #  learning rate range
+                     keep.data = TRUE )
+  
+  #  In this case, the 'som()' function returns a kohonen-type 
+  #  object that is a list of 13 elements.
+  summary( gph500_som )
+  names( gph500_som )
+  
+  #  Check how the SOM training progressed (progress here is defined
+  #  as the distance from the weights of each node to the samples
+  #  represented by that node becoming reduced as the number of 
+  #  times that the data are presented to the network increases).
+  #  Ideally, distances should approach minimimal values 
+  #  (represented on this graph as an inverse plateau).
+  plot( x = gph500_som,
+        type = "changes",
+        main = paste0( "training progress : ",
+                       "nrows x ncols = ",
+                       nrows,
+                       " x ",
+                       ncols ) )
+  
+  #  Display the number of samples (i.e., daily geopotential heights)
+  #  per grid node. One ideal result is to have counts be relatively 
+  #  uniform across the grid, with 5-10 samples per node. Nodes with
+  #  higher (lower) sample numbers suggest that a larger (smaller)
+  #  map is needed.
+  plot( x = gph500_som,
+        type = "counts",
+        main = paste0( "node counts : ",
+                       "nrows x ncols = ",
+                       nrows,
+                       " x ",
+                       ncols ),
+        palette.name = colors.node.counts )
+  
+  #  Increase dimensions of the SOM grid to test this algorithm
+  #  option.
+  nrows <- nrows+2
+  ncols <- ncols+2
+}
+rm( i,nrows,ncols )
 
-#  Run the self-organizing map analysis. Note that the input data
-#  must be in matrix form and that the datetime column is not 
-#  needed. The 'somgrid' function sets up a grid of units for the
-#  analysis. This grid represents an atmospheric pattern topology
-#  to which atmospheric patterns of individual days are linked, or
-#  associated. 
-set.seed( 7 )
-gph500_som <- som( X = as.matrix( gph500_df_daily_wide[ ,2:ncol( gph500_df_daily_wide ) ] ),
-                   grid = somgrid( xdim = ncols,
-                                   ydim = nrows,
-                                   topo = "rectangular" ),
-                   rlen = 1000,  #  number of times data presented to network
-                   alpha = c( 1.0,0.001 ),  #  learning rate range
-                   keep.data = TRUE )
 
-#  In this case, the 'som()' function returns a kohonen-type 
-#  object that is a list of 13 elements.
-summary( gph500_som )
-names( gph500_som )
+
+
+
+
+
 
 
 ##################################################################
@@ -218,6 +262,39 @@ plot( gph500_som,
 dim( getCodes( gph500_som ) )
 #  Summary 
 summary( gph500_som ) 
+
+
+
+
+##################################################################
+##  D. RUN SOM ANALYSIS, TESTING ALGORITHM OPTIONS
+##################################################################
+
+
+#  Define the number of nodes (i.e., key patterns) to retain in 
+#  the SOM analysis.
+nrows <- 19
+ncols <- 21
+
+#  Run the self-organizing map analysis. Note that the input data
+#  must be in matrix form and that the datetime column is not 
+#  needed. The 'somgrid' function sets up a grid of units for the
+#  analysis. This grid represents an atmospheric pattern topology
+#  to which atmospheric patterns of individual days are linked, or
+#  associated. 
+set.seed( 7 )
+gph500_som <- som( X = as.matrix( gph500_df_daily_wide[ ,2:ncol( gph500_df_daily_wide ) ] ),
+                   grid = somgrid( xdim = ncols,
+                                   ydim = nrows,
+                                   topo = "rectangular" ),
+                   rlen = 1000,  #  number of times data presented to network
+                   alpha = c( 1.0,0.001 ),  #  learning rate range
+                   keep.data = TRUE )
+
+#  In this case, the 'som()' function returns a kohonen-type 
+#  object that is a list of 13 elements.
+summary( gph500_som )
+names( gph500_som )
 
 
 
