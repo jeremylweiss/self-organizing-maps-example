@@ -35,10 +35,11 @@ month_end <- 11
 # Load needed libraries
 library("maps")  # needed for "RNCEP" package
 library("RNCEP")  # working with NCEP-NCAR data
+
 library("kohonen")  # for SOM analysis
 
-library("dplyr")
 library("reshape2")
+library("dplyr")
 library("tidyr")
 library("ggplot2")
 
@@ -67,10 +68,10 @@ gph500 <- NCEP.gather(variable = 'hgt',
                       status.bar = TRUE)
 
 # Save the data array to the current directory for future development
-#save(gph500,file = "gph500_feb_apr_7919.Rdata")
+#save(gph500, file = "gph500_feb_apr_7919_r2.Rdata")
 
 # To load the saved array at a later time, use the following:
-#load("gph500_feb_apr_7919.RData")
+#load("gph500_feb_apr_7919_r2.RData")
 
 # Confirm area of interest by mapping a single layer (i.e., timestep) of the 
 # data array
@@ -95,129 +96,88 @@ NCEP.vis.area(wx.data = gph500,
                contour.args = list(labcex = 0.75),
                points.args = list(pch = 20, cex = 0.75))
 
-# NCEP NCAR R2 data are on a six-hour timestep. Temporally aggregate the data on 
-# a daily timestep, averaging values from individual days
-gph500_daily <- 
+# NCEP NCAR data are on a six-hour timestep. Temporally aggregate the data on a
+# daily timestep, averaging values from individual days
+gph500 <- 
   NCEP.aggregate(wx.data = gph500, YEARS = TRUE, MONTHS = TRUE, DAYS = TRUE,
                  HOURS = FALSE, fxn = "mean")
-rm(gph500)
 
 # Convert the data array to a dataframe with columns 'datetime', 'latitude', 
 # 'longitude', and 'gph500' and rows as individual space-time-height value 
 # combinations
-gph500_daily <- NCEP.array2df(wx.data = gph500_daily, var.names = "gph500")
-rm(gph500_daily)
+gph500 <- NCEP.array2df(wx.data = gph500, var.names = "gph500")
+
+# Reshape the dataframe from long to wide format. This is to place all data for 
+# one day into one row (i.e., a sample in the case of SOM analysis) with 
+# following columns (i.e., gridpoints in the analysis domain) as corresponding 
+# values
+gph500 <- dcast(data = gph500, formula = datetime ~ latitude + longitude, 
+                value.var = "gph500")
 
 
+# SOM ANALYSIS AND TESTING OF NODE NUMBER --------------------
 
 
+# Define the number of nodes (i.e., key patterns) to retain in the SOM analysis. 
+# Start with a SOM grid size that is common in climate studies and increase from 
+# there
+nrows <- 3
+ncols <- 5
 
-
-# Reshape the dataframe from long to wide format. This is to 
-# place all data for one day into one row (i.e., a sample in the
-# case of SOM analysis) with following columns (i.e., gridpoints 
-# in the analysis domain) as corresponding values.
-gph500_df_daily_wide <- dcast(data = gph500_daily_df,
-                               formula = datetime ~ latitude + longitude,
-                               value.var = "gph500")
-rm(gph500_daily_df)
-
-
-##################################################################
-## C. RUN SOM ANALYSIS, TESTING SOM GRID ALGORITHM OPTION
-##################################################################
-
-
-# Define the number of nodes (i.e., key patterns) to retain in 
-# the SOM analysis. Start with a SOM grid size that is common
-# in climate studies and increase from there.
-nrows <- 5
-ncols <- 7
-for (i in 1:12) {
+for (i in 1:5) {
   
-  # Run the self-organizing map analysis. Note that the input data
-  # must be in matrix form and that the datetime column is not 
-  # needed. The 'somgrid' function sets up a grid of units for the
-  # analysis. This grid represents an atmospheric pattern topology
-  # to which atmospheric patterns of individual days are linked, or
-  # associated. 
+  # Run the self-organizing map analysis. Note that the input data must be in 
+  # matrix form and that the datetime column is not needed. The 'somgrid' 
+  # function sets up a grid of units for the analysis. This grid represents an 
+  # atmospheric pattern topology to which atmospheric patterns of individual 
+  # days are linked, or associated
   set.seed(7)
-  gph500_som <- som(X = as.matrix(gph500_df_daily_wide[,2:ncol(gph500_df_daily_wide)]),
-                     grid = somgrid(xdim = ncols,
-                                     ydim = nrows,
-                                     topo = "rectangular"),
-                     rlen = 1000,  # number of times data presented to network
-                     alpha = c(1.0,0.001),  # learning rate range
-                     keep.data = TRUE)
   
-  # In this case, the 'som()' function returns a kohonen-type 
-  # object that is a list of 13 elements.
+  gph500_som <- 
+    som(X = as.matrix(gph500[, 2:ncol(gph500)]),
+        grid = somgrid(xdim = ncols, ydim = nrows, topo = "rectangular"),
+        rlen = 1000,  # number of times data presented to network
+        alpha = c(1.0, 0.001),  # learning rate range
+        keep.data = TRUE)
+  
+  # In this case, the 'som()' function returns a kohonen-type object that is a 
+  # list of 13 elements
   summary(gph500_som)
   names(gph500_som)
   
-  # Check how the SOM training progressed (progress here is defined
-  # as the distance from the weights of each node to the samples
-  # represented by that node becoming reduced as the number of 
-  # times that the data are presented to the network increases).
-  # Ideally, distances should approach minimimal values 
-  # (represented on this graph as an inverse plateau).
-  plot(x = gph500_som,
-        type = "changes",
-        main = paste0("training progress : ",
-                       "nrows x ncols = ",
-                       nrows,
-                       " x ",
-                       ncols))
+  # Check how the SOM training progressed (progress here is defined as the 
+  # distance from the weights of each node to the samples represented by that 
+  # node becoming reduced as the number of times that the data are presented to 
+  # the network increases). Ideally, distances should approach minimimal values 
+  # (represented on this graph as an inverse plateau)
+  plot(x = gph500_som, 
+       type = "changes",
+       main = paste0("training progress : ", "nrows x ncols = ", nrows, " x ",
+                      ncols))
   
-  # Display the number of samples (i.e., daily geopotential heights)
-  # per grid node. One ideal result is to have counts be relatively 
-  # uniform across the grid, with 5-10 samples per node. Nodes with
-  # higher (lower) sample numbers suggest that a larger (smaller)
-  # map is needed.
+  # Display the number of samples (i.e., daily geopotential heights) per grid 
+  # node. One ideal result is to have counts be relatively uniform across the 
+  # grid, with 5-10 samples per node. Nodes with higher (lower) sample numbers 
+  # suggest that a larger (smaller) map is needed.
   plot(x = gph500_som,
-        type = "counts",
-        main = paste0("node counts : ",
-                       "nrows x ncols = ",
-                       nrows,
-                       " x ",
-                       ncols),
-        palette.name = colors.node.counts)
+       type = "counts",
+       main = paste0("node counts : ", "nrows x ncols = ", nrows, " x ", ncols),
+       palette.name = colors.node.counts)
   
   # Increase dimensions of the SOM grid to test this algorithm
   # option.
-  nrows <- nrows+2
-  ncols <- ncols+2
+  nrows <- nrows + 2
+  ncols <- ncols + 2
 }
-rm(i,nrows,ncols)
+rm(i, nrows, ncols)
+
+
+# VISUALIZE SOM ANALYSIS RESULTS --------------------
 
 
 
 
 
-
-
-
-
-##################################################################
-## D. VISUALIZE SOM ANALYSIS RESULTS
-##################################################################
-
-
-# Check how the SOM training progressed (progress here is defined
-# as the distance from the weights of each node to the samples
-# represented by that node becoming reduced as the number of 
-# times that the data are presented to the network increases).
-# Ideally, distances should approach minimimal values 
-# (represented on this graph as an inverse plateau).
-plot(x = gph500_som,
-      type = "changes",
-      main = "training progress")
-
-#
-plot(x = gph500_som,
-      type = "counts",
-      main = "node counts",
-      palette.name = colors.node.counts)
 
 
 
@@ -289,6 +249,9 @@ gph500_som <- som(X = as.matrix(gph500_df_daily_wide[,2:ncol(gph500_df_daily_wid
 # object that is a list of 13 elements.
 summary(gph500_som)
 names(gph500_som)
+
+
+
 
 
 
